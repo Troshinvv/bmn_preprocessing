@@ -76,6 +76,8 @@ auto centrality = 0;
         if (centBin == -1) centrality=-1;
 	else 
 		centrality=((maxCentPercent[centBin] - minCentPercent[centBin]) / 2. + minCentPercent[centBin]);
-  out_sim_event_.SetValue("centrality",(float) centrality);
+auto out_value=out_sim_event_.NewChannel();
+auto field_centrality = out_sim_event_.GetField("centrality");
+out_value.SetValue(field_centrality,(float) centrality);
 }
 } // namespace AnalysisTree
