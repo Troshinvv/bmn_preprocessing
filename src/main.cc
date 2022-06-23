@@ -19,9 +19,9 @@ int main(int argv, char **argc){
     throw std::runtime_error( "No arguments are specified. Try ./run_qa --help for more information" );
   }
   std::vector<std::string> in_file_lists;
-  std::vector<std::string> in_tree_names{ std::vector{std::string("rTree")} };
+  std::vector<std::string> in_tree_names{ std::vector{std::string("aTree")} };
   std::string output_file{"output.root"};
-  std::string output_tree{"eTree"};
+  std::string output_tree{"aTree"};
   int n_events{-1};
   po::options_description options("Options");
   options.add_options()

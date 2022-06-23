@@ -19,116 +19,63 @@ void TracksProcessor::Init() {
   auto man = TaskManager::GetInstance();
   auto chain = man->GetChain();
 
-  AddInputBranch("SimParticles");
-  AddInputBranch("GlobalTracks");
-//  AddInputBranch("SimParticles2GlobalTracks");
-  in_sim_particles_ = chain->GetBranch("SimParticles");
+  AddInputBranch("TpcTracks");
+  AddInputBranch("RecoEvent");
+  in_sim_particles_ = chain->GetBranch("TpcTracks");
   in_sim_particles_.Freeze();
-  in_tracks_ = chain->GetBranch("GlobalTracks");
-  in_tracks_.Freeze();
-  sim_particles_2_global_tracks_ = chain->GetMatching( "SimParticles", "GlobalTracks" );
 
-  auto in_sim_particles_conf = chain->GetConfiguration()->GetBranchConfig("SimParticles");
-  auto out_sim_particles_conf =in_sim_particles_conf.Clone("SimParticlesExt", DetType::kParticle);
-  out_sim_particles_conf.AddField<float>("Ekin", "kinetic energy");
-  out_sim_particles_conf.AddField<float>("y_cm", "center-of-mass rapidity");
+  auto in_sim_event_conf = chain->GetConfiguration()->GetBranchConfig("RecoEvent");
+  auto out_sim_event_conf =in_sim_event_conf.Clone("RecoEventExt", DetType::kEventHeader);
+  out_sim_event_conf.AddField<float>("centrality", "centrality, %");
 
-  out_sim_particles_ = Branch(out_sim_particles_conf);
-  out_sim_particles_.SetMutable();
+  out_sim_event_ = Branch(out_sim_event_conf);
+  out_sim_event_.SetMutable();
 
-  auto in_tracks_conf = chain->GetConfiguration()->GetBranchConfig("GlobalTracks");
-  auto out_tracks_conf = in_tracks_conf.Clone("GlobalTracksExt", DetType::kParticle);
-  out_tracks_conf.AddField<bool>("is_primary", "is primary particle");
-  out_tracks_conf.AddField<float>("y_cm", "center-of-mass rapidity");
+  man->AddBranch(&out_sim_event_);
 
-  out_tracks_ = Branch(out_tracks_conf);
-  out_tracks_.SetMutable();
-
-  man->AddBranch(&out_sim_particles_);
-  man->AddBranch(&out_tracks_);
-
-  FHCalQA();
 }
 
 void TracksProcessor::Exec() {
   using AnalysisTree::Particle;
   this->LoopRecTracks();
-  if (is_mc_) {
-    this->LoopSimParticles();
-  }
 }
 
 void TracksProcessor::LoopRecTracks() {
   using AnalysisTree::Particle;
-  out_tracks_.ClearChannels();
-  auto field_out_ycm = out_tracks_.GetField("y_cm");
-  auto field_out_is_primary = out_tracks_.GetField("is_primary");
-  auto field_out_pid = out_tracks_.GetField("pid");
-  auto field_out_mass = out_tracks_.GetField("mass");
-  auto field_out_rapidity = out_tracks_.GetField("rapidity");
-
-  auto field_sim_pid = in_sim_particles_.GetField("pid");
-  auto field_sim_mass = in_sim_particles_.GetField("mass");
-  auto field_sim_mother_id = in_sim_particles_.GetField("mother_id");
-
-  auto y_beam = data_header_->GetBeamRapidity();
-
-  for (size_t i=0; i<in_tracks_.size(); ++i) {
-    auto in_track = in_tracks_[i];
-    auto sim_particle_idx = sim_particles_2_global_tracks_->GetMatchInverted( i );
-    if( sim_particle_idx < 0 )
-      continue;
-    auto sim_particle = in_sim_particles_[sim_particle_idx];
-    auto pid = (int) sim_particle[field_sim_pid];
-    auto mother_id = (int) sim_particle[field_sim_mother_id];
-    auto mass = sim_particle[field_sim_mass];
-    auto out_particle = out_tracks_.NewChannel();
-    out_particle.CopyContent( in_track );
-    out_particle.SetValue( field_out_mass, (float) mass );
-    out_particle.SetValue( field_out_pid, (int) pid );
-    out_particle.SetValue( field_out_is_primary, mother_id == -1 );
-    auto rapidity = out_particle[field_out_rapidity];
-    out_particle.SetValue( field_out_ycm, (float)rapidity - y_beam );
-  }
-}
-void TracksProcessor::LoopSimParticles() {
-  using AnalysisTree::Particle;
-  out_sim_particles_.ClearChannels();
-  auto field_out_ycm = out_sim_particles_.GetField("y_cm");
-  auto field_out_Ekin = out_sim_particles_.GetField("Ekin");
-  auto field_out_mass = out_sim_particles_.GetField("mass");
-  auto field_out_p = out_sim_particles_.GetField("p");
-  auto field_out_rapidity = out_sim_particles_.GetField("rapidity");
-
-  auto y_beam = data_header_->GetBeamRapidity();
-
-  for (size_t i=0; i<in_sim_particles_.size(); ++i) {
+  auto field_in_eta = in_sim_particles_.GetField("eta");
+  auto field_in_pT = in_sim_particles_.GetField("pT");
+  auto field_in_nhits = in_sim_particles_.GetField("nhits");
+  auto field_in_dca_x = in_sim_particles_.GetField("dca_x");
+  auto field_in_dca_y = in_sim_particles_.GetField("dca_y");
+  auto field_in_dca_z = in_sim_particles_.GetField("dca_z");
+  auto Mult=0;
+  for (size_t i=0; i<in_sim_particles_.size(); ++i) { 
     auto in_particle = in_sim_particles_[i];
-    auto out_particle = out_sim_particles_.NewChannel();
-    out_particle.CopyContent(in_particle);
-    auto rapidity = out_particle[field_out_rapidity];
-    out_particle.SetValue( field_out_ycm, (float)rapidity - y_beam );
-    auto p = out_particle[field_out_p];
-    auto mass = out_particle[field_out_mass];
-    auto Ekin = sqrt(p*p + mass*mass) - mass;
-    out_particle.SetValue(field_out_Ekin, (float) Ekin);
+    auto eta = in_particle[field_in_eta];
+    auto pT = in_particle[field_in_pT];
+    auto nhits = in_particle[field_in_nhits];
+    auto dca_x = in_particle[field_in_dca_x];
+    auto dca_y = in_particle[field_in_dca_y];
+    auto dca_z = in_particle[field_in_dca_z];
+    if(nhits>16 && abs(eta)<0.5 && pT>0.15 && dca_x<1. && dca_y<1. && dca_z<1.)
+    {
+	    Mult=Mult+1;
+    }
   }
-}
-void TracksProcessor::FHCalQA() {
-  auto man = TaskManager::GetInstance();
-  auto data_header = man->GetDataHeader();
-  auto module_pos = data_header->GetModulePositions( 0 );
-  auto h2_module_positions_ = new TH2F("fhcal_module_positions", ";x (cm);y (cm)", 500, -100, 100, 500, -100, 100);
-  for( int idx = 0; idx < 54; idx++ ){
-    auto module = module_pos.Channel(idx);
-    h2_module_positions_->Fill(module.GetX(), module.GetY(), module.GetId() );
-  }
-  h2_module_positions_->Write();
-  auto h2_left_module_positions_ = new TH2F("scwall_module_positions", ";x (cm);y (cm)", 500, -100, 100, 500, -100, 100);
-  for( int idx = 54; idx < 54+174; idx++ ){
-    auto module = module_pos.Channel(idx);
-    h2_left_module_positions_->Fill(module.GetX(), module.GetY(), module.GetId() );
-  }
-  h2_left_module_positions_->Write();
+  Float_t minCentPercent [14] = { 0, 5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90};
+Float_t maxCentPercent [14] = { 5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 70, 80, 90, 100};
+Int_t minMult [14] = { 138, 116, 97, 82, 69, 58, 48, 40, 27, 17, 10, 6, 3, 1};
+Int_t maxMult [14] = { 217, 138, 116, 97, 82, 69, 58, 48, 40, 27, 17, 10, 6, 3};
+Int_t centBin = -1;
+auto centrality = 0;
+        for (Int_t i = 0; i < 14; i++)
+        {
+                if (Mult >= minMult[i] && Mult < maxMult[i])
+                        centBin = i;
+        }
+        if (centBin == -1) centrality=-1;
+	else 
+		centrality=((maxCentPercent[centBin] - minCentPercent[centBin]) / 2. + minCentPercent[centBin]);
+  out_sim_event_.SetValue("centrality",(float) centrality);
 }
 } // namespace AnalysisTree

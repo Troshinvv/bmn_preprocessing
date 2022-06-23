@@ -40,7 +40,7 @@ private:
   Branch in_sim_particles_;
 
   Branch out_tracks_;
-  Branch out_sim_particles_;
+  Branch out_sim_event_;
 
   Matching* sim_particles_2_global_tracks_;
 };
